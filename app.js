@@ -193,18 +193,20 @@
   function renderTasks() {
     const day = getDay(today());
     const list = document.getElementById('taskList');
-    const empty = document.getElementById('emptyTasks');
     const closeCard = document.getElementById('dailyCloseCard');
 
     if (day.tasks.length === 0) {
-      list.innerHTML = '';
-      list.appendChild(empty);
-      empty.style.display = '';
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">✨</div>
+          <p>还没有今日任务</p>
+          <p class="empty-sub">添加你今天打算做的事吧</p>
+        </div>
+      `;
       closeCard.style.display = 'none';
       return;
     }
 
-    empty.style.display = 'none';
     list.innerHTML = '';
 
     day.tasks.forEach((task, i) => {
