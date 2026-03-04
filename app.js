@@ -89,6 +89,62 @@
     document.getElementById('celebration').classList.remove('show');
   };
 
+  // ===== Journal Evaluation Engine =====
+  function evaluateJournal(text) {
+    const result = { stars: 0, total: 0, breakdown: [] };
+    const len = text.replace(/\s/g, '').length; // non-whitespace chars
+
+    // 1. Word count (max 2 stars)
+    if (len >= 300) {
+      result.breakdown.push({ icon: '✍️', label: '字数充足 (300+)', stars: 2, earned: true });
+      result.stars += 2;
+    } else if (len >= 100) {
+      result.breakdown.push({ icon: '✍️', label: '字数达标 (100+)', stars: 1, earned: true });
+      result.stars += 1;
+    } else {
+      result.breakdown.push({ icon: '✍️', label: `字数不足 (${len}/100)`, stars: 0, earned: false });
+    }
+
+    // 2. Reflection depth (1 star)
+    const reflectWords = ['因为', '所以', '发现', '意识到', '原来', '明白了', '理解了', '感受到',
+      '反思', '思考', '领悟', '觉悟', '认识到', '想到了', '意味着', '说明',
+      '之所以', '根本原因', '本质上', '实际上', '深层'];
+    const hasReflection = reflectWords.some(w => text.includes(w));
+    if (hasReflection) {
+      result.breakdown.push({ icon: '🔍', label: '包含反思分析', stars: 1, earned: true });
+      result.stars += 1;
+    } else {
+      result.breakdown.push({ icon: '🔍', label: '缺少反思分析', stars: 0, earned: false,
+        hint: '试试用"因为""发现""意识到"' });
+    }
+
+    // 3. Action planning (1 star)
+    const actionWords = ['下次', '以后', '打算', '计划', '明天', '接下来', '要做', '准备',
+      '目标', '改进', '调整', '尝试', '第一步', '具体来说', '行动'];
+    const hasAction = actionWords.some(w => text.includes(w));
+    if (hasAction) {
+      result.breakdown.push({ icon: '🎯', label: '包含行动计划', stars: 1, earned: true });
+      result.stars += 1;
+    } else {
+      result.breakdown.push({ icon: '🎯', label: '缺少行动计划', stars: 0, earned: false,
+        hint: '试试写"下次我要""计划"' });
+    }
+
+    // 4. Self-questioning (1 star)
+    const hasQuestion = text.includes('？') || text.includes('?');
+    if (hasQuestion) {
+      result.breakdown.push({ icon: '❓', label: '有自我提问', stars: 1, earned: true });
+      result.stars += 1;
+    } else {
+      result.breakdown.push({ icon: '❓', label: '缺少自我提问', stars: 0, earned: false,
+        hint: '问问自己为什么？' });
+    }
+
+    result.total = result.stars;
+    result.points = result.stars * 0.5; // each star = 0.5 🌸
+    return result;
+  }
+
   // ===== Streak Calculation =====
   function updateStreak() {
     const t = today();
@@ -186,11 +242,36 @@
       closeCard.style.display = 'none';
     }
 
-    // Restore mood
+    // Restore mood & journal
     document.querySelectorAll('.mood-btn').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.mood === day.mood);
     });
-    document.getElementById('noteInput').value = day.note || '';
+
+    const journalInput = document.getElementById('journalInput');
+    const journalSubmitBtn = document.getElementById('journalSubmitBtn');
+    const journalSubmitted = document.getElementById('journalSubmitted');
+    const journalEval = document.getElementById('journalEval');
+
+    journalInput.value = day.journal || day.note || '';
+    updateWordCount();
+
+    if (day.journalSubmitted) {
+      journalInput.readOnly = true;
+      journalInput.style.opacity = '0.7';
+      journalSubmitBtn.style.display = 'none';
+      journalSubmitted.style.display = '';
+      // Show eval
+      if (day.journalEval) {
+        showEvaluation(day.journalEval);
+        journalEval.style.display = '';
+      }
+    } else {
+      journalInput.readOnly = false;
+      journalInput.style.opacity = '1';
+      journalSubmitBtn.style.display = '';
+      journalSubmitted.style.display = 'none';
+      journalEval.style.display = 'none';
+    }
   }
 
   function renderRewards() {
@@ -276,14 +357,17 @@
       const done = day.tasks.filter(t => t.done).length;
       const item = document.createElement('div');
       item.className = 'history-item';
+      const journalLen = day.journal ? day.journal.replace(/\s/g, '').length : 0;
+      const journalStars = day.journalEval ? '★'.repeat(day.journalEval.stars) + '☆'.repeat(5 - day.journalEval.stars) : '';
       item.innerHTML = `
         <div class="history-date">
           ${date.slice(5).replace('-', '月') + '日'}
           ${day.mood ? `<span class="history-mood">${day.mood}</span>` : ''}
         </div>
         <div class="history-detail">
-          ✅ ${done}/${day.tasks.length} 任务 · +${day.earned || 0} 🌸
-          ${day.note ? ` · "${escapeHtml(day.note.slice(0, 30))}"` : ''}
+          ✅ ${done}/${day.tasks.length} 任务 · +${(day.earned || 0) + (day.journalPoints || 0)} 🌸
+          ${journalStars ? ` · 📝${journalStars}` : ''}
+          ${day.journal ? ` · "${escapeHtml(day.journal.slice(0, 30))}..."` : ''}
         </div>
       `;
       historyList.appendChild(item);
@@ -386,6 +470,116 @@
     showCelebration(reward.emoji, `兑换成功！<br><br>「${reward.name}」<br><br>记得去享受哦，<br>奖励自己也是任务的一部分 💕`);
   }
 
+  function updateWordCount() {
+    const text = document.getElementById('journalInput').value;
+    const len = text.replace(/\s/g, '').length;
+    const el = document.getElementById('wordCount');
+    el.textContent = len + ' 字';
+
+    if (len >= 300) {
+      el.className = 'word-count good';
+    } else if (len >= 100) {
+      el.className = 'word-count active';
+    } else {
+      el.className = 'word-count';
+    }
+
+    // Live star preview
+    const evalResult = evaluateJournal(text);
+    const stars = document.querySelectorAll('#journalStars .star');
+    stars.forEach((s, i) => {
+      s.textContent = i < evalResult.stars ? '★' : '☆';
+      s.classList.toggle('filled', i < evalResult.stars);
+    });
+
+    // Hint
+    const hint = document.getElementById('journalHint');
+    if (len === 0) {
+      hint.textContent = '';
+    } else if (len < 100) {
+      hint.textContent = `再写 ${100 - len} 字解锁评估`;
+    } else if (evalResult.stars < 5) {
+      const missed = evalResult.breakdown.find(b => !b.earned && b.hint);
+      hint.textContent = missed ? missed.hint : '';
+    } else {
+      hint.textContent = '满分！🌟';
+    }
+  }
+
+  function showEvaluation(evalResult) {
+    const container = document.getElementById('evalBreakdown');
+    document.getElementById('evalPoints').textContent = `+${evalResult.points} 🌸`;
+    container.innerHTML = '';
+
+    evalResult.breakdown.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'eval-item';
+      div.innerHTML = `
+        <span class="eval-icon">${item.icon}</span>
+        <span class="eval-label">${item.label}</span>
+        <span class="eval-score ${item.earned ? 'earned' : 'missed'}">${item.earned ? '★'.repeat(item.stars) : '☆'}</span>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  function submitJournal() {
+    const day = getDay(today());
+    const text = document.getElementById('journalInput').value;
+    const len = text.replace(/\s/g, '').length;
+
+    if (len < 10) {
+      showToast('写多一点再提交吧～');
+      return;
+    }
+
+    const evalResult = evaluateJournal(text);
+    day.journal = text;
+    day.journalSubmitted = true;
+    day.journalEval = evalResult;
+    day.journalPoints = evalResult.points;
+
+    // Award points
+    state.points += evalResult.points;
+    saveState();
+
+    // Show evaluation
+    showEvaluation(evalResult);
+    document.getElementById('journalEval').style.display = '';
+    document.getElementById('journalSubmitBtn').style.display = 'none';
+    document.getElementById('journalSubmitted').style.display = '';
+    document.getElementById('journalInput').readOnly = true;
+    document.getElementById('journalInput').style.opacity = '0.7';
+
+    renderHeader();
+
+    if (evalResult.stars >= 4) {
+      showCelebration('🌟', `思考深度 ${evalResult.stars}/5 星！<br>获得额外 ${evalResult.points} 🌸<br><br>深度反思是最好的成长方式 💕`);
+    } else if (evalResult.points > 0) {
+      showToast(`📝 +${evalResult.points} 🌸 感想奖励！`);
+    }
+  }
+
+  function editJournal() {
+    const day = getDay(today());
+    // Refund old points
+    if (day.journalPoints) {
+      state.points -= day.journalPoints;
+    }
+    day.journalSubmitted = false;
+    day.journalEval = null;
+    day.journalPoints = 0;
+    saveState();
+
+    document.getElementById('journalInput').readOnly = false;
+    document.getElementById('journalInput').style.opacity = '1';
+    document.getElementById('journalSubmitBtn').style.display = '';
+    document.getElementById('journalSubmitted').style.display = 'none';
+    document.getElementById('journalEval').style.display = 'none';
+    document.getElementById('journalInput').focus();
+    renderHeader();
+  }
+
   function addCustomReward() {
     const name = document.getElementById('customRewardName').value.trim();
     const cost = Number(document.getElementById('customRewardCost').value);
@@ -460,12 +654,16 @@
       });
     });
 
-    // Note
-    document.getElementById('noteInput').addEventListener('input', (e) => {
+    // Journal
+    document.getElementById('journalInput').addEventListener('input', (e) => {
       const day = getDay(today());
-      day.note = e.target.value;
+      day.journal = e.target.value;
       saveState();
+      updateWordCount();
     });
+
+    document.getElementById('journalSubmitBtn').addEventListener('click', submitJournal);
+    document.getElementById('journalEditBtn').addEventListener('click', editJournal);
 
     // Custom reward
     document.getElementById('addRewardBtn').addEventListener('click', addCustomReward);

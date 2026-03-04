@@ -91,10 +91,13 @@
         <button class="btn-primary" id="closeBtn">结算今天 🌸</button>
       </div>
 
-      <!-- Mood / Note -->
-      <div class="card">
+      <!-- Journal / Reflection -->
+      <div class="card journal-card">
         <div class="card-header">
-          <h2>💭 今天的心情</h2>
+          <h2>📝 今日感想</h2>
+          <div class="journal-stars" id="journalStars">
+            <span class="star">☆</span><span class="star">☆</span><span class="star">☆</span><span class="star">☆</span><span class="star">☆</span>
+          </div>
         </div>
         <div class="mood-row">
           <button class="mood-btn" data-mood="😊">😊</button>
@@ -103,7 +106,26 @@
           <button class="mood-btn" data-mood="💪">💪</button>
           <button class="mood-btn" data-mood="😴">😴</button>
         </div>
-        <textarea id="noteInput" placeholder="随便写点什么..." rows="2"></textarea>
+        <div class="journal-area">
+          <textarea id="journalInput" placeholder="今天有什么想法、感悟、反思？&#10;&#10;💡 写100字以上可以获得额外🌸&#10;包含反思、行动计划、自问会得更高分～" rows="6"></textarea>
+          <div class="journal-footer">
+            <span class="word-count" id="wordCount">0 字</span>
+            <span class="journal-hint" id="journalHint"></span>
+          </div>
+        </div>
+        <!-- Evaluation result (shown after submit) -->
+        <div class="journal-eval" id="journalEval" style="display:none;">
+          <div class="eval-header">
+            <span class="eval-title">📊 思考深度评估</span>
+            <span class="eval-points" id="evalPoints">+0 🌸</span>
+          </div>
+          <div class="eval-breakdown" id="evalBreakdown"></div>
+        </div>
+        <button class="btn-journal-submit" id="journalSubmitBtn">提交感想 ✨</button>
+        <div class="journal-submitted" id="journalSubmitted" style="display:none;">
+          <span>✅ 今日感想已提交</span>
+          <button class="btn-link" id="journalEditBtn">修改</button>
+        </div>
       </div>
     </main>
 
