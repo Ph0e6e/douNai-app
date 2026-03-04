@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>DouNai 🌸 探索动力引擎</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#FFF0F3">
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Floating petals -->
+    <div class="petals-container" id="petals"></div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <h1>🌸 DouNai</h1>
+        <div class="streak-badge" id="streakBadge">
+          <span class="streak-fire">🔥</span>
+          <span id="streakCount">0</span>天
+        </div>
+      </div>
+      <div class="points-display">
+        <div class="points-number" id="totalPoints">0</div>
+        <div class="points-label">🌸</div>
+      </div>
+      <div class="next-reward-bar">
+        <div class="bar-label">
+          <span>下一个奖励</span>
+          <span id="nextRewardName">小确幸 ☕</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="bar-sublabel" id="progressText">还需 1 🌸</div>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="today">今日</button>
+      <button class="tab-btn" data-tab="rewards">奖励</button>
+      <button class="tab-btn" data-tab="history">记录</button>
+      <button class="tab-btn" data-tab="settings">设置</button>
+    </nav>
+
+    <!-- Today Tab -->
+    <main class="tab-content active" id="tab-today">
+      <div class="card">
+        <div class="card-header">
+          <h2>📋 今日任务</h2>
+          <span class="date-display" id="todayDate"></span>
+        </div>
+        <div id="taskList" class="task-list">
+          <div class="empty-state" id="emptyTasks">
+            <div class="empty-icon">✨</div>
+            <p>还没有今日任务</p>
+            <p class="empty-sub">添加你今天打算做的事吧</p>
+          </div>
+        </div>
+        <div class="add-task">
+          <input type="text" id="taskInput" placeholder="添加一个任务..." maxlength="100">
+          <button id="addTaskBtn" class="btn-add">+</button>
+        </div>
+      </div>
+
+      <div class="card" id="dailyCloseCard" style="display:none;">
+        <div class="card-header">
+          <h2>🌙 今日结算</h2>
+        </div>
+        <div class="close-summary">
+          <div class="close-stat">
+            <span class="close-num" id="closeDone">0</span>
+            <span class="close-label">完成</span>
+          </div>
+          <div class="close-stat">
+            <span class="close-num" id="closeTotal">0</span>
+            <span class="close-label">总计</span>
+          </div>
+          <div class="close-stat">
+            <span class="close-num" id="closeEarned">0</span>
+            <span class="close-label">获得 🌸</span>
+          </div>
+        </div>
+        <button class="btn-primary" id="closeBtn">结算今天 🌸</button>
+      </div>
+
+      <!-- Mood / Note -->
+      <div class="card">
+        <div class="card-header">
+          <h2>💭 今天的心情</h2>
+        </div>
+        <div class="mood-row">
+          <button class="mood-btn" data-mood="😊">😊</button>
+          <button class="mood-btn" data-mood="😐">😐</button>
+          <button class="mood-btn" data-mood="😫">😫</button>
+          <button class="mood-btn" data-mood="💪">💪</button>
+          <button class="mood-btn" data-mood="😴">😴</button>
+        </div>
+        <textarea id="noteInput" placeholder="随便写点什么..." rows="2"></textarea>
+      </div>
+    </main>
+
+    <!-- Rewards Tab -->
+    <main class="tab-content" id="tab-rewards">
+      <div class="card">
+        <div class="card-header">
+          <h2>🎁 奖励商店</h2>
+          <span class="points-mini">余额: <span id="rewardPoints">0</span> 🌸</span>
+        </div>
+
+        <div class="reward-tier">
+          <div class="tier-header tier-1">
+            <span>🌸×1 小确幸</span>
+          </div>
+          <div class="reward-grid" id="tier1Rewards"></div>
+        </div>
+
+        <div class="reward-tier">
+          <div class="tier-header tier-3">
+            <span>🌸×3 小奖励</span>
+          </div>
+          <div class="reward-grid" id="tier3Rewards"></div>
+        </div>
+
+        <div class="reward-tier">
+          <div class="tier-header tier-7">
+            <span>🌸×7 中奖励</span>
+          </div>
+          <div class="reward-grid" id="tier7Rewards"></div>
+        </div>
+
+        <div class="reward-tier">
+          <div class="tier-header tier-15">
+            <span>🌸×15 大奖励</span>
+          </div>
+          <div class="reward-grid" id="tier15Rewards"></div>
+        </div>
+
+        <div class="reward-tier">
+          <div class="tier-header tier-30">
+            <span>🌸×30 终极奖励</span>
+          </div>
+          <div class="reward-grid" id="tier30Rewards"></div>
+        </div>
+      </div>
+
+      <!-- Redeemed history -->
+      <div class="card">
+        <div class="card-header">
+          <h2>✅ 已兑换</h2>
+        </div>
+        <div id="redeemedList" class="redeemed-list">
+          <div class="empty-state">
+            <p>还没有兑换过奖励</p>
+            <p class="empty-sub">攒够🌸就来挑一个吧！</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- History Tab -->
+    <main class="tab-content" id="tab-history">
+      <div class="card">
+        <div class="card-header">
+          <h2>📊 数据总览</h2>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-num" id="statTotalDays">0</div>
+            <div class="stat-label">总天数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statTotalTasks">0</div>
+            <div class="stat-label">完成任务</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statMaxStreak">0</div>
+            <div class="stat-label">最长连续</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statTotalRewards">0</div>
+            <div class="stat-label">兑换奖励</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar heatmap -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🌸 花开记录</h2>
+        </div>
+        <div class="heatmap" id="heatmap"></div>
+      </div>
+
+      <!-- Daily logs -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📝 每日记录</h2>
+        </div>
+        <div id="historyList" class="history-list">
+          <div class="empty-state">
+            <p>还没有记录</p>
+            <p class="empty-sub">完成第一天就有了～</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Settings Tab -->
+    <main class="tab-content" id="tab-settings">
+      <div class="card">
+        <div class="card-header">
+          <h2>⚙️ 设置</h2>
+        </div>
+        <div class="settings-section">
+          <h3>自定义奖励</h3>
+          <p class="settings-desc">可以添加你自己想要的奖励到商店里</p>
+          <div class="custom-reward-form">
+            <input type="text" id="customRewardName" placeholder="奖励名称（如：去吃火锅）" maxlength="30">
+            <select id="customRewardCost">
+              <option value="1">🌸×1</option>
+              <option value="3">🌸×3</option>
+              <option value="7">🌸×7</option>
+              <option value="15">🌸×15</option>
+              <option value="30">🌸×30</option>
+            </select>
+            <input type="text" id="customRewardEmoji" placeholder="emoji" maxlength="2" style="width:60px">
+            <button class="btn-primary btn-sm" id="addRewardBtn">添加</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>数据管理</h3>
+          <button class="btn-outline" id="exportBtn">📤 导出数据</button>
+          <button class="btn-outline" id="importBtn">📥 导入数据</button>
+          <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
+
+        <div class="settings-section">
+          <h3>关于</h3>
+          <p class="about-text">
+            DouNai 🌸 探索动力引擎<br>
+            为豆奶量身打造的动力伙伴<br>
+            <small>完成任务 → 攒🌸 → 解锁探索</small>
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Celebration overlay -->
+    <div class="celebration" id="celebration">
+      <div class="celebration-content">
+        <div class="celebration-emoji" id="celebrationEmoji">🎉</div>
+        <div class="celebration-text" id="celebrationText"></div>
+        <button class="btn-primary" onclick="closeCelebration()">好的！</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
