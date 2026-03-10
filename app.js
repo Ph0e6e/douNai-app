@@ -279,6 +279,12 @@
     const list = document.getElementById('taskList');
     const closeCard = document.getElementById('dailyCloseCard');
 
+    // Always update diary date first (before any early return)
+    const now = new Date();
+    document.getElementById('diaryMonth').textContent = now.getMonth() + 1;
+    document.getElementById('diaryDay').textContent = now.getDate();
+    document.getElementById('diaryWeekday').textContent = '星期' + '日一二三四五六'[now.getDay()];
+
     if (day.tasks.length === 0) {
       list.innerHTML = `
         <div class="empty-state">
@@ -328,11 +334,7 @@
       closeCard.style.display = 'none';
     }
 
-    // Update diary date (time removed from diary page — shown in history after submit)
-    const now = new Date();
-    document.getElementById('diaryMonth').textContent = now.getMonth() + 1;
-    document.getElementById('diaryDay').textContent = now.getDate();
-    document.getElementById('diaryWeekday').textContent = '星期' + '日一二三四五六'[now.getDay()];
+    // (diary date already updated at top of renderTasks)
 
     // Restore mood & weather
     document.querySelectorAll('.mood-btn').forEach(btn => {
