@@ -328,12 +328,11 @@
       closeCard.style.display = 'none';
     }
 
-    // Update diary date/time
+    // Update diary date (time removed from diary page — shown in history after submit)
     const now = new Date();
     document.getElementById('diaryMonth').textContent = now.getMonth() + 1;
     document.getElementById('diaryDay').textContent = now.getDate();
     document.getElementById('diaryWeekday').textContent = '星期' + '日一二三四五六'[now.getDay()];
-    document.getElementById('diaryTime').textContent = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
 
     // Restore mood & weather
     document.querySelectorAll('.mood-btn').forEach(btn => {
@@ -455,9 +454,12 @@
       item.className = 'history-item';
       const journalLen = day.journal ? day.journal.replace(/\s/g, '').length : 0;
       const journalStars = day.journalEval ? '★'.repeat(day.journalEval.stars) + '☆'.repeat(5 - day.journalEval.stars) : '';
+      const submitTime = day.journalSubmitTime ? new Date(day.journalSubmitTime) : null;
+      const timeStr = submitTime ? `${submitTime.getHours().toString().padStart(2,'0')}:${submitTime.getMinutes().toString().padStart(2,'0')}` : '';
       item.innerHTML = `
         <div class="history-date">
           ${date.slice(5).replace('-', '月') + '日'}
+          ${timeStr ? `<span class="history-time">${timeStr}</span>` : ''}
           ${day.weather ? `<span class="history-weather">${day.weather}</span>` : ''}
           ${day.mood ? `<span class="history-mood">${day.mood}</span>` : ''}
         </div>
@@ -633,6 +635,7 @@
     const evalResult = evaluateJournal(text);
     day.journal = text;
     day.journalSubmitted = true;
+    day.journalSubmitTime = new Date().toISOString();
     day.journalEval = evalResult;
     day.journalPoints = evalResult.points;
 
