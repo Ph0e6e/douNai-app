@@ -52,37 +52,39 @@
 
     <!-- Today Tab -->
     <main class="tab-content active" id="tab-today">
-      <div class="card">
+      <div class="card bingo-card">
         <div class="card-header">
-          <h2>📋 今日任务</h2>
+          <h2>🎲 今日 Bingo</h2>
           <span class="date-display" id="todayDate"></span>
         </div>
-        <div id="taskList" class="task-list"></div>
-        <div class="add-task">
-          <input type="text" id="taskInput" placeholder="添加一个任务..." maxlength="100">
-          <button id="addTaskBtn" class="btn-add">+</button>
-        </div>
-      </div>
 
-      <div class="card" id="dailyCloseCard" style="display:none;">
-        <div class="card-header">
-          <h2>🌙 今日结算</h2>
+        <!-- Compact add task for replacement -->
+        <div class="bingo-add">
+          <input type="text" id="taskInput" placeholder="新任务 → 替换格子" maxlength="50">
+          <button id="addTaskBtn" class="btn-add-sm">+</button>
         </div>
-        <div class="close-summary">
-          <div class="close-stat">
-            <span class="close-num" id="closeDone">0</span>
-            <span class="close-label">完成</span>
+
+        <!-- Pending replacement chips -->
+        <div class="bingo-pending" id="bingoPending"></div>
+
+        <!-- 5x5 Bingo Grid -->
+        <div class="bingo-grid" id="bingoGrid"></div>
+
+        <!-- Line progress -->
+        <div class="bingo-stats">
+          <div class="bingo-stat">
+            <span class="bingo-stat-num" id="bingoCompleted">0</span>
+            <span class="bingo-stat-label">完成</span>
           </div>
-          <div class="close-stat">
-            <span class="close-num" id="closeTotal">0</span>
-            <span class="close-label">总计</span>
+          <div class="bingo-stat">
+            <span class="bingo-stat-num" id="bingoLines">0</span>
+            <span class="bingo-stat-label">连线</span>
           </div>
-          <div class="close-stat">
-            <span class="close-num" id="closeEarned">0</span>
-            <span class="close-label">获得 🌸</span>
+          <div class="bingo-stat">
+            <span class="bingo-stat-num" id="bingoEarned">0</span>
+            <span class="bingo-stat-label">🌸</span>
           </div>
         </div>
-        <button class="btn-primary" id="closeBtn">结算今天 🌸</button>
       </div>
 
       <!-- Journal / Diary -->
@@ -270,6 +272,16 @@
         <div class="card-header">
           <h2>⚙️ 设置</h2>
         </div>
+        <div class="settings-section">
+          <h3>📋 我的任务池</h3>
+          <p class="settings-desc">这些任务会随机出现在每天的Bingo卡片中</p>
+          <div id="taskPoolList" class="task-pool-list"></div>
+          <div class="pool-add">
+            <input type="text" id="poolTaskInput" placeholder="添加新任务到任务池..." maxlength="50">
+            <button class="btn-primary btn-sm" id="addPoolTaskBtn">添加</button>
+          </div>
+        </div>
+
         <div class="settings-section">
           <h3>自定义奖励</h3>
           <p class="settings-desc">可以添加你自己想要的奖励到商店里</p>

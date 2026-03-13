@@ -1,40 +1,61 @@
-// DouNai 🌸 — Exploration Motivation Engine
+// DouNai 🌸 — Exploration Motivation Engine (v0.2 Bingo Edition)
 // All state in localStorage, no backend needed
 
 (function () {
   'use strict';
 
-  // ===== Default Rewards =====
+  // ===== Constants =====
   const DEFAULT_REWARDS = [
-    // Tier 1 (1🌸)
     { id: 'r1a', name: '点杯奶茶/咖啡', emoji: '☕', cost: 1 },
     { id: 'r1b', name: '泡澡 / 敷面膜', emoji: '🛁', cost: 1 },
     { id: 'r1c', name: '心安理得看一集剧', emoji: '📺', cost: 1 },
     { id: 'r1d', name: '买一份甜品', emoji: '🍰', cost: 1 },
-    // Tier 3 (3🌸)
     { id: 'r3a', name: '去公园走走', emoji: '🌿', cost: 3 },
     { id: 'r3b', name: '去想吃的店', emoji: '🍜', cost: 3 },
     { id: 'r3c', name: '出门拍10张照片', emoji: '📷', cost: 3 },
     { id: 'r3d', name: '给自己买个小东西', emoji: '🛍️', cost: 3 },
-    // Tier 7 (7🌸)
     { id: 'r7a', name: '鸡鸣寺看樱花', emoji: '🌸', cost: 7 },
     { id: 'r7b', name: '紫金山半日徒步', emoji: '🏔️', cost: 7 },
     { id: 'r7c', name: '去看场电影', emoji: '🎬', cost: 7 },
     { id: 'r7d', name: '约朋友吃一顿好的', emoji: '🍽️', cost: 7 },
-    // Tier 15 (15🌸)
     { id: 'r15a', name: '南京一日深度游', emoji: '🗺️', cost: 15 },
     { id: 'r15b', name: '做一次SPA/按摩', emoji: '💆', cost: 15 },
     { id: 'r15c', name: '买个一直想要的东西', emoji: '🎁', cost: 15 },
     { id: 'r15d', name: '周边城市一日游', emoji: '🚄', cost: 15 },
-    // Tier 30 (30🌸)
     { id: 'r30a', name: '安排一次真正的旅行', emoji: '✈️', cost: 30 },
     { id: 'r30b', name: '你来定！', emoji: '🎉', cost: 30 },
   ];
 
+  const SYSTEM_TASKS = [
+    '喝一杯水', '站起来走走', '深呼吸10次', '伸个懒腰',
+    '整理桌面', '看窗外1分钟', '听一首歌', '给朋友发条消息',
+    '刷牙洗脸', '吃早餐', '散步15分钟', '看10页书',
+    '整理一个抽屉', '运动15分钟', '写3句话', '做一顿饭',
+    '打扫一小块地方', '拍一张照片', '学习30分钟', '浇花',
+    '涂个防晒', '吃个水果', '记一笔账', '泡杯茶',
+    '做个拉伸', '收拾书包', '扔掉一件不需要的东西',
+    '看一个短视频学点东西', '给家人打个电话', '画个小涂鸦',
+    '整理手机相册', '列个明日计划',
+  ];
+
+  // 12 possible lines: 5 rows + 5 cols + 2 diagonals
+  const BINGO_LINES = [
+    [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+    [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
+    [0,6,12,18,24], [4,8,12,16,20],
+  ];
+
+  const FREE_INDEX = 12;
+
   // ===== State Management =====
   function getState() {
     const raw = localStorage.getItem('douNai_state');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const s = JSON.parse(raw);
+      // Migration: add taskPool if missing
+      if (!s.taskPool) s.taskPool = [];
+      return s;
+    }
     return {
       points: 0,
       streak: 0,
@@ -43,15 +64,15 @@
       totalDays: 0,
       totalRewardsRedeemed: 0,
       rewards: [...DEFAULT_REWARDS],
-      redeemed: [],     // { id, name, emoji, cost, date }
-      days: {},         // { '2026-03-04': { tasks: [...], mood, note, settled, earned } }
+      redeemed: [],
+      days: {},
       lastActiveDate: null,
+      taskPool: [], // { id, text }
     };
   }
 
   function saveState() {
     localStorage.setItem('douNai_state', JSON.stringify(state));
-    // Auto cloud backup (debounced)
     scheduleCloudBackup();
   }
 
@@ -74,7 +95,6 @@
   function scheduleCloudBackup() {
     const cfg = getSyncConfig();
     if (!cfg.enabled || !cfg.serverUrl) return;
-    // Debounce: wait 3 seconds after last change
     if (syncTimer) clearTimeout(syncTimer);
     syncTimer = setTimeout(() => cloudBackup(cfg), 3000);
   }
@@ -112,6 +132,7 @@
         const data = await res.json();
         if (data && data.points !== undefined) {
           state = data;
+          if (!state.taskPool) state.taskPool = [];
           localStorage.setItem('douNai_state', JSON.stringify(state));
           return true;
         }
@@ -151,7 +172,19 @@
 
   function getDay(date) {
     if (!state.days[date]) {
-      state.days[date] = { tasks: [], mood: null, note: '', settled: false, earned: 0 };
+      state.days[date] = {
+        bingo: null,
+        mood: null,
+        weather: null,
+        journal: '',
+        journalSubmitted: false,
+        journalEval: null,
+        journalPoints: 0,
+        // Legacy compat
+        tasks: [],
+        settled: false,
+        earned: 0,
+      };
     }
     return state.days[date];
   }
@@ -160,7 +193,7 @@
     const el = document.getElementById('toast');
     el.textContent = msg;
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 2000);
+    setTimeout(() => el.classList.remove('show'), 2200);
   }
 
   function showCelebration(emoji, text) {
@@ -173,12 +206,17 @@
     document.getElementById('celebration').classList.remove('show');
   };
 
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
   // ===== Journal Evaluation Engine =====
   function evaluateJournal(text) {
     const result = { stars: 0, total: 0, breakdown: [] };
-    const len = text.replace(/\s/g, '').length; // non-whitespace chars
+    const len = text.replace(/\s/g, '').length;
 
-    // 1. Word count (max 2 stars)
     if (len >= 300) {
       result.breakdown.push({ icon: '✍️', label: '字数充足 (300+)', stars: 2, earned: true });
       result.stars += 2;
@@ -189,12 +227,10 @@
       result.breakdown.push({ icon: '✍️', label: `字数不足 (${len}/100)`, stars: 0, earned: false });
     }
 
-    // 2. Reflection depth (1 star)
     const reflectWords = ['因为', '所以', '发现', '意识到', '原来', '明白了', '理解了', '感受到',
       '反思', '思考', '领悟', '觉悟', '认识到', '想到了', '意味着', '说明',
       '之所以', '根本原因', '本质上', '实际上', '深层'];
-    const hasReflection = reflectWords.some(w => text.includes(w));
-    if (hasReflection) {
+    if (reflectWords.some(w => text.includes(w))) {
       result.breakdown.push({ icon: '🔍', label: '包含反思分析', stars: 1, earned: true });
       result.stars += 1;
     } else {
@@ -202,11 +238,9 @@
         hint: '试试用"因为""发现""意识到"' });
     }
 
-    // 3. Action planning (1 star)
     const actionWords = ['下次', '以后', '打算', '计划', '明天', '接下来', '要做', '准备',
       '目标', '改进', '调整', '尝试', '第一步', '具体来说', '行动'];
-    const hasAction = actionWords.some(w => text.includes(w));
-    if (hasAction) {
+    if (actionWords.some(w => text.includes(w))) {
       result.breakdown.push({ icon: '🎯', label: '包含行动计划', stars: 1, earned: true });
       result.stars += 1;
     } else {
@@ -214,9 +248,7 @@
         hint: '试试写"下次我要""计划"' });
     }
 
-    // 4. Self-questioning (1 star)
-    const hasQuestion = text.includes('？') || text.includes('?');
-    if (hasQuestion) {
+    if (text.includes('？') || text.includes('?')) {
       result.breakdown.push({ icon: '❓', label: '有自我提问', stars: 1, earned: true });
       result.stars += 1;
     } else {
@@ -225,7 +257,7 @@
     }
 
     result.total = result.stars;
-    result.points = result.stars * 0.5; // each star = 0.5 🌸
+    result.points = result.stars * 0.5;
     return result;
   }
 
@@ -234,7 +266,7 @@
     const t = today();
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
-    if (state.lastActiveDate === t) return; // already counted today
+    if (state.lastActiveDate === t) return;
     if (state.lastActiveDate === yesterday) {
       state.streak += 1;
     } else if (state.lastActiveDate !== t) {
@@ -246,13 +278,108 @@
     saveState();
   }
 
+  // ===== Bingo Logic =====
+
+  // Get task text by ID
+  function getTaskText(taskId) {
+    if (taskId === 'FREE') return '🌸';
+    // Check user pool
+    const userTask = state.taskPool.find(t => t.id === taskId);
+    if (userTask) return userTask.text;
+    // Check system tasks
+    if (taskId.startsWith('sys_')) {
+      const idx = parseInt(taskId.slice(4));
+      if (idx >= 0 && idx < SYSTEM_TASKS.length) return SYSTEM_TASKS[idx];
+    }
+    return '???';
+  }
+
+  // Shuffle array (Fisher-Yates)
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // Generate today's bingo grid
+  function generateBingo() {
+    // Collect all available task IDs
+    const userIds = state.taskPool.map(t => t.id);
+    const sysIds = SYSTEM_TASKS.map((_, i) => `sys_${i}`);
+
+    // Combine: user tasks first, then system to fill
+    let pool = [...userIds];
+    // Add system tasks not already represented
+    for (const sid of sysIds) {
+      if (pool.length >= 24) break;
+      pool.push(sid);
+    }
+
+    // If still not enough, duplicate some
+    while (pool.length < 24) {
+      pool.push(sysIds[pool.length % sysIds.length]);
+    }
+
+    // Shuffle and pick 24
+    const picked = shuffle(pool).slice(0, 24);
+
+    // Insert FREE at center (index 12)
+    const grid = [...picked.slice(0, 12), 'FREE', ...picked.slice(12)];
+
+    return {
+      grid: grid,
+      completed: [FREE_INDEX], // FREE is auto-completed
+      awardedLines: 0,
+      pending: [],
+      streakCounted: false,
+    };
+  }
+
+  // Ensure today has a bingo
+  function ensureTodayBingo() {
+    const day = getDay(today());
+    if (!day.bingo) {
+      day.bingo = generateBingo();
+      saveState();
+    }
+    return day;
+  }
+
+  // Count completed lines
+  function countLines(completed) {
+    const set = new Set(completed);
+    let count = 0;
+    for (const line of BINGO_LINES) {
+      if (line.every(i => set.has(i))) count++;
+    }
+    return count;
+  }
+
+  // Get indices of cells that are part of completed lines
+  function getLineCells(completed) {
+    const set = new Set(completed);
+    const lineCells = new Set();
+    for (const line of BINGO_LINES) {
+      if (line.every(i => set.has(i))) {
+        line.forEach(i => lineCells.add(i));
+      }
+    }
+    return lineCells;
+  }
+
+  // UI state for pending replacement
+  let selectedPendingId = null;
+
   // ===== Render Functions =====
+
   function renderHeader() {
     document.getElementById('totalPoints').textContent = state.points;
     document.getElementById('streakCount').textContent = state.streak;
     document.getElementById('rewardPoints').textContent = state.points;
 
-    // Next reward calculation
     const tiers = [1, 3, 7, 15, 30];
     const tierNames = ['小确幸 ☕', '小奖励 🌿', '中奖励 🌸', '大奖励 🗺️', '终极奖励 ✈️'];
     let nextTier = tiers[tiers.length - 1];
@@ -274,67 +401,61 @@
       needed > 0 ? `还需 ${needed} 🌸` : '可以兑换啦！🎉';
   }
 
-  function renderTasks() {
-    const day = getDay(today());
-    const list = document.getElementById('taskList');
-    const closeCard = document.getElementById('dailyCloseCard');
+  function renderBingo() {
+    const day = ensureTodayBingo();
+    const bingo = day.bingo;
+    const grid = document.getElementById('bingoGrid');
+    const lineCells = getLineCells(bingo.completed);
+    const completedSet = new Set(bingo.completed);
 
-    // Always update diary date first (before any early return)
+    grid.innerHTML = '';
+
+    bingo.grid.forEach((taskId, idx) => {
+      const cell = document.createElement('div');
+      const isFree = idx === FREE_INDEX;
+      const isCompleted = completedSet.has(idx);
+      const isInLine = lineCells.has(idx);
+
+      cell.className = 'bingo-cell';
+      if (isFree) cell.classList.add('free');
+      if (isCompleted) cell.classList.add('completed');
+      if (isInLine) cell.classList.add('in-line');
+      if (selectedPendingId) cell.classList.add('replace-target');
+
+      cell.dataset.idx = idx;
+
+      const text = getTaskText(taskId);
+      cell.innerHTML = `<span class="cell-text">${escapeHtml(text)}</span>`;
+
+      grid.appendChild(cell);
+    });
+
+    // Render pending chips
+    const pendingContainer = document.getElementById('bingoPending');
+    pendingContainer.innerHTML = '';
+    if (bingo.pending && bingo.pending.length > 0) {
+      bingo.pending.forEach(taskId => {
+        const chip = document.createElement('div');
+        chip.className = 'pending-chip' + (selectedPendingId === taskId ? ' selected' : '');
+        chip.dataset.taskId = taskId;
+        const text = getTaskText(taskId);
+        chip.innerHTML = `${escapeHtml(text)} <span class="chip-remove" data-task-id="${taskId}">✕</span>`;
+        pendingContainer.appendChild(chip);
+      });
+    }
+
+    // Stats
+    const completedCount = bingo.completed.length;
+    const lines = countLines(bingo.completed);
+    document.getElementById('bingoCompleted').textContent = completedCount;
+    document.getElementById('bingoLines').textContent = lines;
+    document.getElementById('bingoEarned').textContent = bingo.awardedLines || 0;
+
+    // Update diary date
     const now = new Date();
     document.getElementById('diaryMonth').textContent = now.getMonth() + 1;
     document.getElementById('diaryDay').textContent = now.getDate();
     document.getElementById('diaryWeekday').textContent = '星期' + '日一二三四五六'[now.getDay()];
-
-    if (day.tasks.length === 0) {
-      list.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">✨</div>
-          <p>还没有今日任务</p>
-          <p class="empty-sub">添加你今天打算做的事吧</p>
-        </div>
-      `;
-      closeCard.style.display = 'none';
-      return;
-    }
-
-    list.innerHTML = '';
-
-    day.tasks.forEach((task, i) => {
-      const div = document.createElement('div');
-      div.className = 'task-item';
-      div.innerHTML = `
-        <div class="task-checkbox ${task.done ? 'checked' : ''}" data-idx="${i}"></div>
-        <span class="task-text ${task.done ? 'done' : ''}">${escapeHtml(task.text)}</span>
-        <button class="task-delete" data-idx="${i}">✕</button>
-      `;
-      list.appendChild(div);
-    });
-
-    // Show daily close if there are completed tasks and not yet settled
-    const doneCount = day.tasks.filter(t => t.done).length;
-    if (doneCount > 0 && !day.settled) {
-      closeCard.style.display = '';
-      document.getElementById('closeDone').textContent = doneCount;
-      document.getElementById('closeTotal').textContent = day.tasks.length;
-
-      // Calculate potential earnings
-      let earned = 0;
-      if (doneCount === day.tasks.length && day.tasks.length > 0) earned = 1;
-      else if (doneCount >= day.tasks.length * 0.5) earned = 1; // at least half
-
-      // Streak bonus (preview)
-      const potentialStreak = state.lastActiveDate === today() ? state.streak : (
-        state.lastActiveDate === new Date(Date.now() - 86400000).toISOString().slice(0, 10) ? state.streak + 1 : 1
-      );
-      if (potentialStreak >= 7) earned += 3;
-      else if (potentialStreak >= 3) earned += 1;
-
-      document.getElementById('closeEarned').textContent = earned;
-    } else {
-      closeCard.style.display = 'none';
-    }
-
-    // (diary date already updated at top of renderTasks)
 
     // Restore mood & weather
     document.querySelectorAll('.mood-btn').forEach(btn => {
@@ -344,12 +465,13 @@
       btn.classList.toggle('selected', btn.dataset.weather === day.weather);
     });
 
+    // Journal
     const journalInput = document.getElementById('journalInput');
     const journalSubmitBtn = document.getElementById('journalSubmitBtn');
     const journalSubmitted = document.getElementById('journalSubmitted');
     const journalEval = document.getElementById('journalEval');
 
-    journalInput.value = day.journal || day.note || '';
+    journalInput.value = day.journal || '';
     updateWordCount();
 
     if (day.journalSubmitted) {
@@ -357,7 +479,6 @@
       journalInput.style.opacity = '0.7';
       journalSubmitBtn.style.display = 'none';
       journalSubmitted.style.display = '';
-      // Show eval
       if (day.journalEval) {
         showEvaluation(day.journalEval);
         journalEval.style.display = '';
@@ -392,7 +513,6 @@
       });
     }
 
-    // Redeemed list
     const redeemed = document.getElementById('redeemedList');
     if (state.redeemed.length === 0) {
       redeemed.innerHTML = `<div class="empty-state"><p>还没有兑换过奖励</p><p class="empty-sub">攒够🌸就来挑一个吧！</p></div>`;
@@ -412,7 +532,6 @@
   }
 
   function renderHistory() {
-    // Stats
     document.getElementById('statTotalDays').textContent = state.totalDays;
     document.getElementById('statTotalTasks').textContent = state.totalTasksDone;
     document.getElementById('statMaxStreak').textContent = state.maxStreak;
@@ -425,21 +544,38 @@
       const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
       const day = state.days[d];
       let level = 0;
-      if (day && day.settled) {
-        const done = day.tasks.filter(t => t.done).length;
-        if (done >= 4) level = 4;
-        else if (done >= 3) level = 3;
-        else if (done >= 2) level = 2;
-        else if (done >= 1) level = 1;
+      if (day) {
+        if (day.bingo) {
+          // Bingo day: level by lines
+          const lines = countLines(day.bingo.completed);
+          if (lines >= 8) level = 4;
+          else if (lines >= 5) level = 3;
+          else if (lines >= 2) level = 2;
+          else if (lines >= 1) level = 1;
+        } else if (day.settled) {
+          // Legacy task day
+          const done = day.tasks.filter(t => t.done).length;
+          if (done >= 4) level = 4;
+          else if (done >= 3) level = 3;
+          else if (done >= 2) level = 2;
+          else if (done >= 1) level = 1;
+        }
       }
       const cell = document.createElement('div');
       cell.className = `heatmap-cell level-${level}`;
       const dateDisplay = d.slice(5);
-      cell.title = `${dateDisplay}: ${day && day.settled ? day.tasks.filter(t => t.done).length + '/' + day.tasks.length + ' 任务' : '无记录'}`;
+      if (day && day.bingo) {
+        const lines = countLines(day.bingo.completed);
+        cell.title = `${dateDisplay}: ${day.bingo.completed.length}格 ${lines}条线`;
+      } else if (day && day.settled) {
+        cell.title = `${dateDisplay}: ${day.tasks.filter(t => t.done).length}/${day.tasks.length} 任务`;
+      } else {
+        cell.title = `${dateDisplay}: 无记录`;
+      }
       heatmap.appendChild(cell);
     }
 
-    // History list (sorted desc)
+    // History list
     const historyList = document.getElementById('historyList');
     const sortedDays = Object.keys(state.days).sort().reverse();
 
@@ -451,102 +587,219 @@
     historyList.innerHTML = '';
     sortedDays.slice(0, 14).forEach(date => {
       const day = state.days[date];
-      const done = day.tasks.filter(t => t.done).length;
       const item = document.createElement('div');
       item.className = 'history-item';
-      const journalLen = day.journal ? day.journal.replace(/\s/g, '').length : 0;
+
+      let taskInfo = '';
+      let earned = 0;
+      if (day.bingo) {
+        const lines = countLines(day.bingo.completed);
+        const completed = day.bingo.completed.length;
+        taskInfo = `🎲 ${completed}格 · ${lines}条线 · +${day.bingo.awardedLines || 0} 🌸`;
+        earned = (day.bingo.awardedLines || 0) + (day.journalPoints || 0);
+      } else {
+        const done = day.tasks ? day.tasks.filter(t => t.done).length : 0;
+        const total = day.tasks ? day.tasks.length : 0;
+        taskInfo = `✅ ${done}/${total} 任务 · +${(day.earned || 0) + (day.journalPoints || 0)} 🌸`;
+      }
+
       const journalStars = day.journalEval ? '★'.repeat(day.journalEval.stars) + '☆'.repeat(5 - day.journalEval.stars) : '';
-      const submitTime = day.journalSubmitTime ? new Date(day.journalSubmitTime) : null;
-      const timeStr = submitTime ? `${submitTime.getHours().toString().padStart(2,'0')}:${submitTime.getMinutes().toString().padStart(2,'0')}` : '';
+
       item.innerHTML = `
         <div class="history-date">
           ${date.slice(5).replace('-', '月') + '日'}
-          ${timeStr ? `<span class="history-time">${timeStr}</span>` : ''}
           ${day.weather ? `<span class="history-weather">${day.weather}</span>` : ''}
           ${day.mood ? `<span class="history-mood">${day.mood}</span>` : ''}
         </div>
         <div class="history-detail">
-          ✅ ${done}/${day.tasks.length} 任务 · +${(day.earned || 0) + (day.journalPoints || 0)} 🌸
+          ${taskInfo}
           ${journalStars ? ` · 📝${journalStars}` : ''}
-          ${day.journal ? ` · "${escapeHtml(day.journal.slice(0, 30))}..."` : ''}
+          ${day.journal ? ` · "${escapeHtml(day.journal.slice(0, 30))}${day.journal.length > 30 ? '...' : ''}"` : ''}
         </div>
       `;
       historyList.appendChild(item);
     });
   }
 
+  function renderTaskPool() {
+    const list = document.getElementById('taskPoolList');
+    if (!list) return;
+
+    if (state.taskPool.length === 0) {
+      list.innerHTML = '<div class="pool-empty">还没有自定义任务<br>添加后会出现在每天的Bingo里</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    state.taskPool.forEach(task => {
+      const item = document.createElement('div');
+      item.className = 'pool-task-item';
+      item.innerHTML = `
+        <span>${escapeHtml(task.text)}</span>
+        <button class="pool-task-delete" data-id="${task.id}">✕</button>
+      `;
+      list.appendChild(item);
+    });
+  }
+
   function renderAll() {
     renderHeader();
-    renderTasks();
+    renderBingo();
     renderRewards();
     renderHistory();
+    renderTaskPool();
   }
 
-  // ===== Actions =====
-  function addTask(text) {
-    if (!text.trim()) return;
+  // ===== Bingo Actions =====
+
+  function toggleBingoCell(idx) {
     const day = getDay(today());
-    day.tasks.push({ text: text.trim(), done: false });
+    if (!day.bingo) return;
+    if (idx === FREE_INDEX) return; // Can't toggle FREE
+
+    const bingo = day.bingo;
+    const completedSet = new Set(bingo.completed);
+
+    if (completedSet.has(idx)) {
+      // Uncomplete
+      bingo.completed = bingo.completed.filter(i => i !== idx);
+    } else {
+      // Complete
+      bingo.completed.push(idx);
+
+      // First completion today? Update streak
+      if (!bingo.streakCounted) {
+        updateStreak();
+        bingo.streakCounted = true;
+
+        // Streak bonus
+        let streakBonus = 0;
+        if (state.streak >= 7) streakBonus = 3;
+        else if (state.streak >= 3) streakBonus = 1;
+
+        if (streakBonus > 0) {
+          state.points += streakBonus;
+          showToast(`🔥 连续${state.streak}天！额外+${streakBonus}🌸`);
+        }
+
+        state.totalDays += 1;
+      }
+
+      state.totalTasksDone += 1;
+    }
+
+    // Check for new lines
+    const newLineCount = countLines(bingo.completed);
+    const newLines = newLineCount - (bingo.awardedLines || 0);
+
+    if (newLines > 0) {
+      // Award points for new lines
+      state.points += newLines;
+      bingo.awardedLines = newLineCount;
+
+      if (newLines === 1) {
+        showToast('🎉 连线！+1 🌸');
+      } else {
+        showToast(`🎉 ${newLines}条新连线！+${newLines} 🌸`);
+      }
+
+      // Flash line cells
+      setTimeout(() => {
+        const lineCells = getLineCells(bingo.completed);
+        document.querySelectorAll('.bingo-cell').forEach(cell => {
+          if (lineCells.has(Number(cell.dataset.idx))) {
+            cell.classList.add('line-flash');
+          }
+        });
+      }, 50);
+    } else if (!completedSet.has(idx)) {
+      // Just completed a cell, no line yet
+      // Animate the cell
+      setTimeout(() => {
+        const cell = document.querySelector(`.bingo-cell[data-idx="${idx}"]`);
+        if (cell) cell.classList.add('just-completed');
+      }, 50);
+    }
+
+    // Handle line loss when uncompleting
+    if (completedSet.has(idx)) {
+      // Uncompleted a cell, might lose lines
+      const lostLines = (bingo.awardedLines || 0) - newLineCount;
+      if (lostLines > 0) {
+        state.points = Math.max(0, state.points - lostLines);
+        bingo.awardedLines = newLineCount;
+        showToast(`连线断了 -${lostLines} 🌸`);
+      }
+    }
+
     saveState();
-    renderTasks();
+    renderBingo();
     renderHeader();
   }
 
-  function toggleTask(idx) {
-    const day = getDay(today());
-    if (idx >= 0 && idx < day.tasks.length) {
-      day.tasks[idx].done = !day.tasks[idx].done;
-      saveState();
-      renderTasks();
-
-      if (day.tasks[idx].done) {
-        showToast('✅ 做得好！');
-      }
-    }
-  }
-
-  function deleteTask(idx) {
-    const day = getDay(today());
-    if (idx >= 0 && idx < day.tasks.length) {
-      day.tasks.splice(idx, 1);
-      saveState();
-      renderTasks();
-    }
-  }
-
-  function settleDay() {
-    const day = getDay(today());
-    if (day.settled) return;
-
-    const done = day.tasks.filter(t => t.done).length;
-    const total = day.tasks.length;
-    if (total === 0) return;
-
-    let earned = 0;
-    if (done >= total * 0.5) earned = 1; // at least half done
-
-    // Update streak
-    updateStreak();
-
-    // Streak bonus
-    if (state.streak >= 7) earned += 3;
-    else if (state.streak >= 3) earned += 1;
-
-    day.earned = earned;
-    day.settled = true;
-    state.points += earned;
-    state.totalTasksDone += done;
-    state.totalDays += 1;
+  function addTaskToPool(text) {
+    if (!text.trim()) return null;
+    const id = 'usr_' + Date.now();
+    const task = { id, text: text.trim() };
+    state.taskPool.push(task);
     saveState();
-    renderAll();
-
-    // Celebration
-    let msg = `今天完成了 ${done}/${total} 个任务！<br>获得 ${earned} 🌸`;
-    if (state.streak >= 7) msg += `<br><br>🔥 连续${state.streak}天！额外+3🌸`;
-    else if (state.streak >= 3) msg += `<br><br>🔥 连续${state.streak}天！额外+1🌸`;
-
-    showCelebration('🌸', msg);
+    return task;
   }
+
+  function removeTaskFromPool(taskId) {
+    state.taskPool = state.taskPool.filter(t => t.id !== taskId);
+    saveState();
+    renderTaskPool();
+  }
+
+  function addPendingTask(text) {
+    const task = addTaskToPool(text);
+    if (!task) return;
+
+    const day = getDay(today());
+    if (!day.bingo) return;
+
+    day.bingo.pending = day.bingo.pending || [];
+    day.bingo.pending.push(task.id);
+    saveState();
+    renderBingo();
+    renderTaskPool();
+    showToast('✨ 点击黄色标签，再点格子替换');
+  }
+
+  function replaceBingoCell(idx, newTaskId) {
+    const day = getDay(today());
+    if (!day.bingo) return;
+    if (idx === FREE_INDEX) return; // Can't replace FREE
+
+    const bingo = day.bingo;
+    const oldTaskId = bingo.grid[idx];
+
+    // Replace
+    bingo.grid[idx] = newTaskId;
+
+    // Remove from completed if it was completed
+    bingo.completed = bingo.completed.filter(i => i !== idx);
+
+    // Remove from pending
+    bingo.pending = (bingo.pending || []).filter(id => id !== newTaskId);
+
+    // Recalculate lines (might have lost some)
+    const newLineCount = countLines(bingo.completed);
+    const lostLines = (bingo.awardedLines || 0) - newLineCount;
+    if (lostLines > 0) {
+      state.points = Math.max(0, state.points - lostLines);
+      bingo.awardedLines = newLineCount;
+    }
+
+    selectedPendingId = null;
+    saveState();
+    renderBingo();
+    renderHeader();
+    showToast('🔄 已替换');
+  }
+
+  // ===== Other Actions =====
 
   function redeemReward(reward) {
     if (state.points < reward.cost) {
@@ -585,7 +838,6 @@
       el.className = 'word-count';
     }
 
-    // Live star preview
     const evalResult = evaluateJournal(text);
     const stars = document.querySelectorAll('#journalStars .star');
     stars.forEach((s, i) => {
@@ -593,7 +845,6 @@
       s.classList.toggle('filled', i < evalResult.stars);
     });
 
-    // Hint
     const hint = document.getElementById('journalHint');
     if (len === 0) {
       hint.textContent = '';
@@ -641,11 +892,9 @@
     day.journalEval = evalResult;
     day.journalPoints = evalResult.points;
 
-    // Award points
     state.points += evalResult.points;
     saveState();
 
-    // Show evaluation
     showEvaluation(evalResult);
     document.getElementById('journalEval').style.display = '';
     document.getElementById('journalSubmitBtn').style.display = 'none';
@@ -664,7 +913,6 @@
 
   function editJournal() {
     const day = getDay(today());
-    // Refund old points
     if (day.journalPoints) {
       state.points -= day.journalPoints;
     }
@@ -714,44 +962,68 @@
       });
     });
 
-    // Add task
+    // Add task (bingo pending)
     document.getElementById('addTaskBtn').addEventListener('click', () => {
       const input = document.getElementById('taskInput');
-      addTask(input.value);
+      addPendingTask(input.value);
       input.value = '';
       input.focus();
     });
 
     document.getElementById('taskInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        addTask(e.target.value);
+        addPendingTask(e.target.value);
         e.target.value = '';
       }
     });
 
-    // Task checkbox + delete (delegation)
-    document.getElementById('taskList').addEventListener('click', (e) => {
-      const checkbox = e.target.closest('.task-checkbox');
-      if (checkbox) {
-        toggleTask(Number(checkbox.dataset.idx));
-        return;
-      }
-      const del = e.target.closest('.task-delete');
-      if (del) {
-        deleteTask(Number(del.dataset.idx));
+    // Bingo grid clicks
+    document.getElementById('bingoGrid').addEventListener('click', (e) => {
+      const cell = e.target.closest('.bingo-cell');
+      if (!cell) return;
+      const idx = Number(cell.dataset.idx);
+
+      if (selectedPendingId) {
+        // Replace mode: replace this cell with pending task
+        replaceBingoCell(idx, selectedPendingId);
+      } else {
+        // Toggle complete
+        toggleBingoCell(idx);
       }
     });
 
-    // Settle day
-    document.getElementById('closeBtn').addEventListener('click', settleDay);
+    // Pending chip clicks
+    document.getElementById('bingoPending').addEventListener('click', (e) => {
+      // Remove button
+      const removeBtn = e.target.closest('.chip-remove');
+      if (removeBtn) {
+        const taskId = removeBtn.dataset.taskId;
+        const day = getDay(today());
+        if (day.bingo) {
+          day.bingo.pending = (day.bingo.pending || []).filter(id => id !== taskId);
+          saveState();
+        }
+        if (selectedPendingId === taskId) selectedPendingId = null;
+        renderBingo();
+        return;
+      }
+
+      // Select/deselect chip
+      const chip = e.target.closest('.pending-chip');
+      if (!chip) return;
+      const taskId = chip.dataset.taskId;
+
+      if (selectedPendingId === taskId) {
+        selectedPendingId = null; // Deselect
+      } else {
+        selectedPendingId = taskId; // Select
+      }
+      renderBingo();
+    });
 
     // Weather selection
     const weatherLabels = {
-      '☀️': '晴朗的一天',
-      '⛅': '多云天气',
-      '🌧️': '下雨了',
-      '❄️': '下雪啦',
-      '🌫️': '雾蒙蒙的'
+      '☀️': '晴朗的一天', '⛅': '多云天气', '🌧️': '下雨了', '❄️': '下雪啦', '🌫️': '雾蒙蒙的'
     };
     document.querySelectorAll('.weather-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -768,11 +1040,8 @@
 
     // Mood selection
     const moodLabels = {
-      '😊': '心情不错！',
-      '😐': '平平淡淡～',
-      '😫': '辛苦了，抱抱',
-      '💪': '今天很有干劲！',
-      '😴': '累了就休息一下～'
+      '😊': '心情不错！', '😐': '平平淡淡～', '😫': '辛苦了，抱抱',
+      '💪': '今天很有干劲！', '😴': '累了就休息一下～'
     };
     document.querySelectorAll('.mood-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -781,12 +1050,9 @@
         saveState();
         document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        // Bounce animation
         btn.style.transform = 'scale(1.3)';
         setTimeout(() => { btn.style.transform = 'scale(1.1)'; }, 150);
-        // Feedback toast
-        const label = moodLabels[btn.dataset.mood] || '已记录';
-        showToast(`${btn.dataset.mood} ${label}`);
+        showToast(`${btn.dataset.mood} ${moodLabels[btn.dataset.mood] || '已记录'}`);
       });
     });
 
@@ -800,6 +1066,43 @@
 
     document.getElementById('journalSubmitBtn').addEventListener('click', submitJournal);
     document.getElementById('journalEditBtn').addEventListener('click', editJournal);
+
+    // Task pool management (Settings)
+    const addPoolBtn = document.getElementById('addPoolTaskBtn');
+    const poolInput = document.getElementById('poolTaskInput');
+    if (addPoolBtn) {
+      addPoolBtn.addEventListener('click', () => {
+        const text = poolInput.value.trim();
+        if (!text) return;
+        addTaskToPool(text);
+        poolInput.value = '';
+        renderTaskPool();
+        showToast('✅ 已添加到任务池');
+      });
+    }
+    if (poolInput) {
+      poolInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const text = e.target.value.trim();
+          if (!text) return;
+          addTaskToPool(text);
+          e.target.value = '';
+          renderTaskPool();
+          showToast('✅ 已添加到任务池');
+        }
+      });
+    }
+
+    // Task pool delete (delegation)
+    const taskPoolList = document.getElementById('taskPoolList');
+    if (taskPoolList) {
+      taskPoolList.addEventListener('click', (e) => {
+        const del = e.target.closest('.pool-task-delete');
+        if (del) {
+          removeTaskFromPool(del.dataset.id);
+        }
+      });
+    }
 
     // Sync settings
     const syncCfg = getSyncConfig();
@@ -876,6 +1179,7 @@
           const imported = JSON.parse(ev.target.result);
           if (imported.points !== undefined) {
             state = imported;
+            if (!state.taskPool) state.taskPool = [];
             saveState();
             renderAll();
             showToast('📥 数据已导入');
@@ -905,13 +1209,6 @@
     }
   }
 
-  // ===== Helpers =====
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   // ===== Init =====
   function init() {
     document.getElementById('todayDate').textContent = todayDisplay();
@@ -920,7 +1217,7 @@
     renderAll();
   }
 
-  // Re-render when page becomes visible again (fixes stale date in PWA / background tabs)
+  // Re-render when page becomes visible (fixes stale date in PWA)
   let lastDate = today();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

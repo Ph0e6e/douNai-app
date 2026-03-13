@@ -1117,6 +1117,279 @@ body {
   .reward-grid { grid-template-columns: 1fr; }
 }
 
+/* ===== Bingo Grid ===== */
+.bingo-card {
+  padding-bottom: 14px;
+}
+
+.bingo-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.bingo-add input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid var(--pink-100);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  background: var(--pink-50);
+  transition: border-color 0.2s;
+}
+
+.bingo-add input:focus {
+  border-color: var(--pink-300);
+  background: white;
+}
+
+.btn-add-sm {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--pink-400);
+  color: white;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-add-sm:active {
+  transform: scale(0.95);
+  background: var(--pink-500);
+}
+
+/* Pending chips */
+.bingo-pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.bingo-pending:empty {
+  display: none;
+}
+
+.pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #FFF3E0;
+  border: 2px solid #FFE082;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  animation: slideIn 0.3s ease;
+}
+
+.pending-chip.selected {
+  background: #FFE082;
+  border-color: #FFA000;
+  box-shadow: 0 0 8px rgba(255,160,0,0.3);
+  transform: scale(1.05);
+}
+
+.pending-chip .chip-remove {
+  font-size: 14px;
+  color: #BF8800;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+/* Bingo Grid */
+.bingo-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.bingo-cell {
+  aspect-ratio: 1;
+  background: white;
+  border: 2px solid var(--pink-100);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px;
+  cursor: pointer;
+  transition: all 0.3s;
+  word-break: break-all;
+  line-height: 1.2;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bingo-cell:active {
+  transform: scale(0.95);
+}
+
+.bingo-cell.completed {
+  background: var(--green-100);
+  border-color: var(--green-400);
+  color: var(--green-400);
+}
+
+.bingo-cell.completed .cell-text {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.bingo-cell.completed::after {
+  content: '✓';
+  position: absolute;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--green-400);
+  opacity: 0.3;
+}
+
+.bingo-cell.free {
+  background: linear-gradient(135deg, var(--pink-50), var(--pink-100));
+  border-color: var(--pink-300);
+  color: var(--pink-400);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.bingo-cell.in-line {
+  border-color: var(--pink-400);
+  box-shadow: 0 0 8px rgba(255,107,138,0.35);
+}
+
+.bingo-cell.replace-target {
+  border-color: #FFA000;
+  background: #FFF8E1;
+  box-shadow: 0 0 6px rgba(255,160,0,0.3);
+}
+
+.cell-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Bingo completion animation */
+@keyframes cellPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.bingo-cell.just-completed {
+  animation: cellPop 0.4s ease;
+}
+
+@keyframes lineFlash {
+  0% { box-shadow: 0 0 0 rgba(255,107,138,0); }
+  50% { box-shadow: 0 0 16px rgba(255,107,138,0.6); }
+  100% { box-shadow: 0 0 8px rgba(255,107,138,0.35); }
+}
+
+.bingo-cell.line-flash {
+  animation: lineFlash 0.6s ease;
+}
+
+/* Bingo Stats Bar */
+.bingo-stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--pink-50);
+}
+
+.bingo-stat {
+  text-align: center;
+}
+
+.bingo-stat-num {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--pink-500);
+}
+
+.bingo-stat-label {
+  font-size: 11px;
+  color: var(--warm-light);
+}
+
+/* ===== Task Pool (Settings) ===== */
+.task-pool-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.pool-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--pink-50);
+  font-size: 14px;
+}
+
+.pool-task-item:last-child {
+  border-bottom: none;
+}
+
+.pool-task-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--warm-light);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pool-task-delete:hover {
+  background: var(--pink-100);
+  color: var(--pink-500);
+}
+
+.pool-add {
+  display: flex;
+  gap: 8px;
+}
+
+.pool-add input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 2px solid var(--pink-100);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.pool-empty {
+  text-align: center;
+  color: var(--warm-light);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
 /* Dark mode hint (future) */
 @media (prefers-color-scheme: dark) {
   /* TODO: dark mode */
